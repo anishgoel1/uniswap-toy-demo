@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USDC/ETH Swap Monitor</title>
+    <style>
+        :root {
+            --background: #0d0415;
+            --card-bg: #191924;
+            --text-primary: #fff;
+            --text-secondary: #99999f;
+            --accent-pink: #ff007a;
+            --accent-green: #27ae60;
+            --border-radius: 16px;
+            --spacing: 20px;
+            --border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--text-primary);
+            padding: var(--spacing);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing);
+            padding: var(--spacing);
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .pool-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pool-icon {
+            width: 48px;
+            height: 48px;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            padding: 1px;
+        }
+
+        .pool-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .pool-name {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .pool-fee {
+            color: var(--text-secondary);
+            background: var(--border-color);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        /* Stats Styles */
+        .stats-container {
+            display: flex;
+            gap: var(--spacing);
+            margin-bottom: var(--spacing);
+        }
+
+        .stat-card {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: var(--spacing);
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Status Indicators */
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-pill {
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 6px 12px;
+            background: var(--border-color);
+            border-radius: 8px;
+        }
+
+        .connection-status {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connection-status.connected {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--accent-green);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff0000;
+        }
+
+        /* Swaps Container */
+        .swaps-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing);
+        }
+
+        .swap-card {
+            flex: 0 0 calc(33.333% - var(--spacing));
+            min-width: 300px;
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: var(--spacing);
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        .swap-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(25, 25, 36, 0.8);
+        }
+
+        .swap-time {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .swap-type {
+            display: inline-block;
+            padding: 6px 12px;
+            background: rgba(255, 0, 122, 0.1);
+            color: var(--accent-pink);
+            border-radius: 8px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .swap-type.buy {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--accent-green);
+        }
+
+        .swap-amount {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .swap-price {
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            font-size: 14px;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .swap-addresses {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .swap-addresses a {
+            color: var(--accent-pink);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .swap-addresses a:hover {
+            color: var(--text-primary);
+        }
+
+        .swap-meta {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            font-size: 14px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .swap-meta a {
+            color: var(--accent-pink);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .swap-meta a:hover {
+            color: var(--text-primary);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .new-swap {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .empty-state {
+            width: 100%;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 1200px) {
+            .swap-card {
+                flex: 0 0 calc(50% - var(--spacing));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .swap-card {
+                flex: 0 0 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="pool-info">
+                <div class="pool-icon">
+                    <img src="uniswap_logo.png" alt="Uniswap Logo">
+                </div>
+                <div class="pool-name">USDC/ETH</div>
+                <div class="pool-fee">0.05%</div>
+            </div>
+            <div class="header-status">
+                <div class="status-pill">Eastern Time</div>
+                <div class="status-pill refresh-timer">Refresh in: 15:00</div>
+                <div id="status" class="connection-status disconnected">Connecting...</div>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card">
+                <div id="total-swaps" class="stat-value">0</div>
+                <div class="stat-label">Total Swaps (6h)</div>
+            </div>
+            <div class="stat-card">
+                <div id="eth-to-usdc" class="stat-value">0</div>
+                <div class="stat-label">ETH → USDC (6h)</div>
+            </div>
+            <div class="stat-card">
+                <div id="usdc-to-eth" class="stat-value">0</div>
+                <div class="stat-label">USDC → ETH (6h)</div>
+            </div>
+        </div>
+        
+        <div class="swaps-container" id="swaps">
+            <div class="empty-state">Loading swaps from the last 6 hours...</div>
+        </div>
+    </div>
+
+    <script>
+        const HOURS_TO_SHOW = 6;
+        const CONFIG = {
+            FETCH_INTERVAL: 5 * 60 * 1000 // 5 minutes in milliseconds
+        };
+        let nextUpdateTime = Date.now() + CONFIG.FETCH_INTERVAL;
+        let displayedTransactions = new Map(); // Change to Map to store full transaction data
+        let isInitialDataLoaded = false;
+        let refreshTimeLeft = CONFIG.FETCH_INTERVAL;
+
+        const timeFormatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+        });
+
+        function updateRefreshTimer() {
+            if (!nextUpdateTime) return;
+            
+            const now = Date.now();
+            const timeLeft = Math.max(0, Math.floor((nextUpdateTime - now) / 1000));
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            
+            document.querySelector('.refresh-timer').textContent = 
+                `Refresh in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // When timer hits 0, only remove old swaps, don't reset stats
+            if (timeLeft === 0) {
+                removeOldSwaps();
+            }
+        }
+
+        function formatTime(timestamp) {
+            return timeFormatter.format(new Date(timestamp)) + ' ET';
+        }
+
+        function updateStats() {
+            const stats = {
+                totalSwaps: displayedTransactions.size,
+                ethToUsdc: [...displayedTransactions.values()].filter(swap => !swap.type.includes('USDC → ETH')).length,
+                usdcToEth: [...displayedTransactions.values()].filter(swap => swap.type.includes('USDC → ETH')).length
+            };
+
+            Object.entries(stats).forEach(([key, value]) => {
+                const element = document.getElementById(key.replace(/([A-Z])/g, '-$1').toLowerCase());
+                if (element) element.textContent = value;
+            });
+        }
+
+        function clearSwapsContainer() {
+            const swapsContainer = document.getElementById('swaps');
+            swapsContainer.innerHTML = '<div class="empty-state">Loading swaps from the last 6 hours...</div>';
+            displayedTransactions.clear();
+            updateStats();
+        }
+
+        function removeOldSwaps() {
+            const now = Date.now();
+            // Remove old transactions from our Map
+            for (const [tx, swap] of displayedTransactions.entries()) {
+                const hoursDiff = (now - new Date(swap.time).getTime()) / (1000 * 60 * 60);
+                if (hoursDiff > HOURS_TO_SHOW) {
+                    displayedTransactions.delete(tx);
+                }
+            }
+            
+            // Rerender all transactions
+            renderSwaps();
+        }
+
+        function createSwapCard(swap) {
+            const card = document.createElement('div');
+            card.className = 'swap-card new-swap';
+            const isEthBuy = swap.type.includes('USDC → ETH');
+            
+            card.innerHTML = `
+                <div class="swap-time">${formatTime(swap.time)}</div>
+                <div class="swap-type ${isEthBuy ? 'buy' : ''}">${swap.type}</div>
+                <div class="swap-amount">${swap.amount}</div>
+                <div class="swap-price">${swap.price}</div>
+                <div class="swap-meta">
+                    <span>Block: ${swap.block}</span>
+                    <a href="https://etherscan.io/tx/${swap.tx}" target="_blank">View Transaction ↗</a>
+                </div>
+            `;
+            return card;
+        }
+
+        function renderSwaps() {
+            const swapsContainer = document.getElementById('swaps');
+            
+            // If no transactions, show empty state
+            if (displayedTransactions.size === 0) {
+                swapsContainer.innerHTML = '<div class="empty-state">No swaps in the last 6 hours</div>';
+                return;
+            }
+
+            // Clear container
+            swapsContainer.innerHTML = '';
+
+            // Sort transactions by timestamp (newest first)
+            const sortedSwaps = [...displayedTransactions.values()]
+                .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+            // Create and append cards in sorted order
+            sortedSwaps.forEach(swap => {
+                const card = createSwapCard(swap);
+                swapsContainer.appendChild(card);
+            });
+
+            // Update stats
+            updateStats();
+        }
+
+        function addSwap(swapData) {
+            if (!swapData) return;
+
+            // Handle refresh signal
+            if (swapData.type === 'refresh') {
+                nextUpdateTime = swapData.nextUpdate;
+                if (!swapData.maintainState) {
+                    clearSwapsContainer();
+                }
+                return;
+            }
+
+            // Update next update time if provided
+            if (swapData.nextUpdate) {
+                nextUpdateTime = swapData.nextUpdate;
+            }
+
+            // Skip old transactions
+            const hoursDiff = (Date.now() - new Date(swapData.time).getTime()) / (1000 * 60 * 60);
+            if (hoursDiff > HOURS_TO_SHOW) return;
+
+            // Store the transaction
+            displayedTransactions.set(swapData.tx, swapData);
+
+            // Rerender all transactions in sorted order
+            renderSwaps();
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('status');
+            status.textContent = connected ? 'Connected' : 'Disconnected';
+            status.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function connect() {
+            const ws = new WebSocket(`ws://${window.location.host}`);
+
+            ws.onopen = () => {
+                updateConnectionStatus(true);
+                clearSwapsContainer();
+                // Set initial timer to avoid the 15-minute flash
+                nextUpdateTime = Date.now() + CONFIG.FETCH_INTERVAL;
+            };
+
+            ws.onclose = () => {
+                updateConnectionStatus(false);
+                setTimeout(connect, 5000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus(false);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const swapData = JSON.parse(event.data);
+                    addSwap(swapData);
+                } catch (error) {
+                    console.error('Error processing swap data:', error);
+                }
+            };
+        }
+
+        // Start connection and timer
+        connect();
+        
+        setInterval(updateRefreshTimer, 1000);
+        
+        // Add refresh on page load
+        window.addEventListener('load', () => {
+            clearSwapsContainer();
+            connect();
+        });
+    </script>
+</body>
+</html> 

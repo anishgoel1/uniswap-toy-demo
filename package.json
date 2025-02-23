@@ -1,0 +1,24 @@
+{
+  "name": "uniswap-v3-monitor",
+  "version": "1.0.0",
+  "description": "Live transaction monitor for Uniswap V3 pools",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "uniswap",
+    "ethereum",
+    "defi",
+    "blockchain"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@uniswap/v3-core": "^1.0.1",
+    "dotenv": "^16.0.3",
+    "ethers": "^6.13.5",
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}
