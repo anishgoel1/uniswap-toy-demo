@@ -9,12 +9,12 @@ const CONFIG = {
     POOL_ADDRESS: '0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8',
     BLOCKS_PER_HOUR: 300, 
     HOURS_TO_FETCH: 6,    
-    FETCH_INTERVAL: 5 * 60 * 1000, // 5 minutes in milliseconds
+    FETCH_INTERVAL: 20 * 60 * 1000, // 20 minutes in milliseconds
     DECIMALS: {
         USDC: 6,
         ETH: 18
     },
-    PORT: 3000,
+    PORT: process.env.PORT || 3000,
     MAX_RETRIES: 3,
     RETRY_DELAY: 5000 // 5 seconds
 };
@@ -67,6 +67,45 @@ class SwapMonitor {
         const usdcAmount = Math.abs(Number(ethers.formatUnits(amount0, CONFIG.DECIMALS.USDC)));
         const price = usdcAmount / ethAmount;
 
+        // Calculate size category
+        let sizeCategory;
+        if (isUsdcToEth) {
+            if (usdcAmount < 10000) sizeCategory = 'Small';
+            else if (usdcAmount < 50000) sizeCategory = 'Medium';
+            else sizeCategory = 'Large';
+        } else {
+            if (ethAmount < 5) sizeCategory = 'Small';
+            else if (ethAmount < 20) sizeCategory = 'Medium';
+            else sizeCategory = 'Large';
+        }
+
+        // Calculate price impact using moving average
+        let priceImpact = 0;
+        if (this.lastProcessedEvents.length > 0) {
+            const recentPrices = this.lastProcessedEvents
+                .slice(-5)  // Take last 5 swaps
+                .map(e => {
+                    const prevEthAmt = Math.abs(Number(ethers.formatUnits(e.amount1, CONFIG.DECIMALS.ETH)));
+                    const prevUsdcAmt = Math.abs(Number(ethers.formatUnits(e.amount0, CONFIG.DECIMALS.USDC)));
+                    return prevUsdcAmt / prevEthAmt;
+                });
+            
+            const avgPrice = recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length;
+            priceImpact = ((price - avgPrice) / avgPrice) * 100;
+        }
+
+        // Update last processed events
+        this.lastProcessedEvents.push({
+            amount0: amount0,
+            amount1: amount1,
+            timestamp: swapTime
+        });
+        
+        // Keep only last 10 events
+        if (this.lastProcessedEvents.length > 10) {
+            this.lastProcessedEvents.shift();
+        }
+
         return {
             time: swapTime,
             type: isUsdcToEth ? 'USDC → ETH' : 'ETH → USDC',
@@ -79,7 +118,9 @@ class SwapMonitor {
             isUsdcToEth: isUsdcToEth,
             nextUpdate: Date.now() + CONFIG.FETCH_INTERVAL,
             amount0: amount0.toString(),
-            amount1: amount1.toString()
+            amount1: amount1.toString(),
+            sizeCategory,
+            priceImpact: priceImpact.toFixed(3)
         };
     }
 

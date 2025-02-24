@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>USDC/ETH Swap Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --background: #0d0415;
@@ -275,6 +276,76 @@
                 flex: 0 0 100%;
             }
         }
+
+        /* Add new styles for metrics */
+        .swap-metrics {
+            display: flex;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .metric {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .metric.size-small { color: #27ae60; }
+        .metric.size-medium { color: #f2c94c; }
+        .metric.size-large { color: #eb5757; }
+
+        .metric.impact-positive { color: #27ae60; }
+        .metric.impact-negative { color: #eb5757; }
+
+        /* Add styles for the chart container */
+        .chart-container {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            padding: var(--spacing);
+            margin-bottom: var(--spacing);
+            height: 300px;
+            position: relative;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chart-control {
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .chart-control:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-control.active {
+            background: var(--accent-pink);
+            color: var(--text-primary);
+            border-color: var(--accent-pink);
+        }
     </style>
 </head>
 <body>
@@ -292,6 +363,17 @@
                 <div class="status-pill refresh-timer">Refresh in: 15:00</div>
                 <div id="status" class="connection-status disconnected">Connecting...</div>
             </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">Price & Impact Analysis</div>
+                <div class="chart-controls">
+                    <button class="chart-control active" data-type="price">Price</button>
+                    <button class="chart-control" data-type="impact">Price Impact</button>
+                </div>
+            </div>
+            <canvas id="priceChart"></canvas>
         </div>
 
         <div class="stats-container">
@@ -317,7 +399,7 @@
     <script>
         const HOURS_TO_SHOW = 6;
         const CONFIG = {
-            FETCH_INTERVAL: 5 * 60 * 1000 // 5 minutes in milliseconds
+            FETCH_INTERVAL: 20 * 60 * 1000 // 20 minutes in milliseconds
         };
         let nextUpdateTime = Date.now() + CONFIG.FETCH_INTERVAL;
         let displayedTransactions = new Map(); // Change to Map to store full transaction data
@@ -326,6 +408,12 @@
 
         const timeFormatter = new Intl.DateTimeFormat('en-US', {
             timeZone: 'America/New_York',
+            hour: 'numeric',
+            hour12: true
+        });
+
+        const timeFormatterWithDate = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
             month: 'numeric',
             day: 'numeric',
             hour: 'numeric',
@@ -333,6 +421,46 @@
             second: 'numeric',
             hour12: true
         });
+
+        function formatTime(timestamp, includeDate = false) {
+            return (includeDate ? timeFormatterWithDate : timeFormatter).format(new Date(timestamp));
+        }
+
+        // Helper function to get hour bucket for a timestamp
+        function getHourBucket(timestamp) {
+            const date = new Date(timestamp);
+            date.setMinutes(0, 0, 0);
+            return date.getTime();
+        }
+
+        // Helper function to average data by hour
+        function averageDataByHour(swaps) {
+            const hourlyData = new Map();
+            
+            swaps.forEach(swap => {
+                const hourBucket = getHourBucket(swap.time);
+                if (!hourlyData.has(hourBucket)) {
+                    hourlyData.set(hourBucket, {
+                        prices: [],
+                        impacts: []
+                    });
+                }
+                
+                const price = parseFloat(swap.price.replace('$', '').replace(/,/g, ''));
+                const impact = parseFloat(swap.priceImpact);
+                
+                if (!isNaN(price)) hourlyData.get(hourBucket).prices.push(price);
+                if (!isNaN(impact)) hourlyData.get(hourBucket).impacts.push(impact);
+            });
+
+            // Convert to arrays and average
+            const sortedHours = Array.from(hourlyData.keys()).sort();
+            return sortedHours.map(hour => ({
+                time: hour,
+                price: hourlyData.get(hour).prices.reduce((a, b) => a + b, 0) / hourlyData.get(hour).prices.length,
+                impact: hourlyData.get(hour).impacts.reduce((a, b) => a + b, 0) / hourlyData.get(hour).impacts.length
+            }));
+        }
 
         function updateRefreshTimer() {
             if (!nextUpdateTime) return;
@@ -349,10 +477,6 @@
             if (timeLeft === 0) {
                 removeOldSwaps();
             }
-        }
-
-        function formatTime(timestamp) {
-            return timeFormatter.format(new Date(timestamp)) + ' ET';
         }
 
         function updateStats() {
@@ -394,11 +518,19 @@
             card.className = 'swap-card new-swap';
             const isEthBuy = swap.type.includes('USDC → ETH');
             
+            // Calculate impact class
+            const impactClass = parseFloat(swap.priceImpact) >= 0 ? 'impact-positive' : 'impact-negative';
+            const sizeClass = `size-${swap.sizeCategory.toLowerCase()}`;
+            
             card.innerHTML = `
-                <div class="swap-time">${formatTime(swap.time)}</div>
+                <div class="swap-time">${formatTime(swap.time, true)}</div>
                 <div class="swap-type ${isEthBuy ? 'buy' : ''}">${swap.type}</div>
                 <div class="swap-amount">${swap.amount}</div>
                 <div class="swap-price">${swap.price}</div>
+                <div class="swap-metrics">
+                    <span class="metric ${sizeClass}">Size: ${swap.sizeCategory}</span>
+                    <span class="metric ${impactClass}">Price Impact: ${swap.priceImpact}%</span>
+                </div>
                 <div class="swap-meta">
                     <span>Block: ${swap.block}</span>
                     <a href="https://etherscan.io/tx/${swap.tx}" target="_blank">View Transaction ↗</a>
@@ -434,31 +566,42 @@
         }
 
         function addSwap(swapData) {
-            if (!swapData) return;
+            try {
+                if (!swapData) return;
 
-            // Handle refresh signal
-            if (swapData.type === 'refresh') {
-                nextUpdateTime = swapData.nextUpdate;
-                if (!swapData.maintainState) {
-                    clearSwapsContainer();
+                // Handle refresh signal
+                if (swapData.type === 'refresh') {
+                    nextUpdateTime = swapData.nextUpdate;
+                    if (!swapData.maintainState) {
+                        clearSwapsContainer();
+                    }
+                    return;
                 }
-                return;
+
+                // Validate timestamp
+                const timestamp = new Date(swapData.time).getTime();
+                if (isNaN(timestamp)) {
+                    console.error('Invalid timestamp in swap data');
+                    return;
+                }
+
+                // Update next update time if provided
+                if (swapData.nextUpdate) {
+                    nextUpdateTime = swapData.nextUpdate;
+                }
+
+                // Skip old transactions
+                const hoursDiff = (Date.now() - timestamp) / (1000 * 60 * 60);
+                if (hoursDiff > HOURS_TO_SHOW) return;
+
+                // Store the transaction
+                displayedTransactions.set(swapData.tx, swapData);
+
+                // Rerender all transactions in sorted order
+                renderSwaps();
+            } catch (error) {
+                console.error('Error adding swap:', error);
             }
-
-            // Update next update time if provided
-            if (swapData.nextUpdate) {
-                nextUpdateTime = swapData.nextUpdate;
-            }
-
-            // Skip old transactions
-            const hoursDiff = (Date.now() - new Date(swapData.time).getTime()) / (1000 * 60 * 60);
-            if (hoursDiff > HOURS_TO_SHOW) return;
-
-            // Store the transaction
-            displayedTransactions.set(swapData.tx, swapData);
-
-            // Rerender all transactions in sorted order
-            renderSwaps();
         }
 
         function updateConnectionStatus(connected) {
@@ -497,13 +640,156 @@
             };
         }
 
+        let priceChart = null;
+        let currentChartType = 'price';
+
+        function initializeChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'ETH Price (USD)',
+                        data: [],
+                        borderColor: '#ff007a',
+                        backgroundColor: 'rgba(255, 0, 122, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const value = context.raw;
+                                    if (currentChartType === 'price') {
+                                        return `Price: $${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                                    } else {
+                                        return `Impact: ${value.toFixed(3)}%`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                maxRotation: 0
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Add click handlers for chart controls
+            document.querySelectorAll('.chart-control').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelectorAll('.chart-control').forEach(b => b.classList.remove('active'));
+                    button.classList.add('active');
+                    currentChartType = button.dataset.type;
+                    updateChart();
+                });
+            });
+        }
+
+        function updateChart() {
+            try {
+                if (!priceChart || displayedTransactions.size === 0) return;
+
+                const sortedSwaps = [...displayedTransactions.values()]
+                    .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+                // Average data by hour
+                const hourlyData = averageDataByHour(sortedSwaps);
+                
+                const times = hourlyData.map(d => formatTime(d.time));
+                let data, label, color, fill;
+
+                if (currentChartType === 'price') {
+                    data = hourlyData.map(d => d.price);
+                    label = 'ETH Price (USD)';
+                    color = '#ff007a';
+                    fill = false;
+                } else {
+                    data = hourlyData.map(d => d.impact);
+                    label = 'Price Impact (%)';
+                    color = '#27ae60';
+                    fill = true;
+                }
+
+                // Validate data before updating chart
+                if (!data.some(isNaN)) {
+                    priceChart.data.labels = times;
+                    priceChart.data.datasets[0].label = label;
+                    priceChart.data.datasets[0].data = data;
+                    priceChart.data.datasets[0].borderColor = color;
+                    priceChart.data.datasets[0].backgroundColor = color.replace(')', ', 0.1)').replace('rgb', 'rgba');
+                    priceChart.data.datasets[0].fill = fill;
+                    
+                    if (currentChartType === 'impact') {
+                        priceChart.options.scales.y.suggestedMin = -2;
+                        priceChart.options.scales.y.suggestedMax = 2;
+                    } else {
+                        delete priceChart.options.scales.y.suggestedMin;
+                        delete priceChart.options.scales.y.suggestedMax;
+                    }
+
+                    priceChart.update();
+                } else {
+                    console.error('Invalid data detected in chart update');
+                }
+            } catch (error) {
+                console.error('Error updating chart:', error);
+            }
+        }
+
+        // Modify the existing renderSwaps function to update the chart
+        const originalRenderSwaps = renderSwaps;
+        renderSwaps = function() {
+            originalRenderSwaps();
+            updateChart();
+        };
+
         // Start connection and timer
         connect();
         
         setInterval(updateRefreshTimer, 1000);
         
-        // Add refresh on page load
+        // Initialize chart when page loads
         window.addEventListener('load', () => {
+            initializeChart();
             clearSwapsContainer();
             connect();
         });
