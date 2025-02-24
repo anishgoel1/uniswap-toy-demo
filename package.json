@@ -1,14 +1,10 @@
 {
-  "name": "uniswap-monitor",
+  "name": "uniswap-v3-monitor",
   "version": "1.0.0",
-  "description": "Uniswap V3 USDC/ETH Pool Monitor",
+  "description": "Live transaction monitor for Uniswap V3 pools",
   "main": "index.js",
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
   "keywords": [
     "uniswap",
@@ -21,11 +17,8 @@
   "dependencies": {
     "@uniswap/v3-core": "^1.0.1",
     "dotenv": "^16.0.3",
-    "ethers": "^6.7.0",
+    "ethers": "^6.13.5",
     "express": "^4.18.2",
-    "ws": "^8.13.0"
-  },
-  "devDependencies": {
-    "nodemon": "^2.0.22"
+    "ws": "^8.16.0"
   }
 }
