@@ -1,17 +1,17 @@
 # Uniswap ETH-USDC Transaction Monitor
 
-A real-time transaction monitor for the Uniswap V3 USDC/ETH 0.05% pool that tracks price movements and calculates price impact for each swap. Data refreshes every 20 minutes to provide a clear view of market activity while minimizing API usage.
+A real-time transaction monitor for the Uniswap V3 USDC/ETH 0.05% pool that tracks price movements and calculates price impact for each swap. Data refreshes every 20 minutes to provide a clear view of market activity.
 
 ## Screenshots
-![Price Analysis](price_display.png)
-![Price Impact Analysis](price_impact.png)
+![Price Analysis](images/price_display.png)
+![Price Impact Analysis](images/price_impact.png)
 
 ### Installation
 
 1. Clone the repository:
 ```bash
 git clone https://github.com/anishgoel1/uniswap-toy-demo.git
-cd uniswap-monitor
+cd uniswap-toy-demo
 ```
 
 2. Install dependencies:
